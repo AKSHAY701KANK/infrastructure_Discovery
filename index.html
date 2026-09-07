@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DB Observability Platform — Live Demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #06080c;
+    --surface: #0e1218;
+    --surface-raised: #141a24;
+    --border: #1e2736;
+    --border-bright: #2a3548;
+    --accent: #00e5a0;
+    --accent-dim: rgba(0,229,160,.12);
+    --blue: #3b82f6;
+    --blue-dim: rgba(59,130,246,.12);
+    --red: #ef4444;
+    --red-dim: rgba(239,68,68,.12);
+    --amber: #f59e0b;
+    --amber-dim: rgba(245,158,11,.12);
+    --text: #e2e8f0;
+    --text-muted: #64748b;
+    --text-dim: #475569;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Space Grotesk', sans-serif;
+    --radius: 12px;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse 800px 600px at 10% 20%, rgba(0,229,160,.04), transparent),
+      radial-gradient(ellipse 600px 500px at 90% 80%, rgba(59,130,246,.03), transparent);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    opacity: 0.5;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app { position: relative; z-index: 1; }
+
+  /* ---- TOPBAR ---- */
+  .topbar {
+    background: rgba(14,18,24,.85);
+    backdrop-filter: blur(16px);
+    padding: 14px 28px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+  }
+
+  .topbar-left { display: flex; align-items: center; gap: 14px; }
+
+  .topbar h1 {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+  }
+  .topbar h1 em {
+    font-style: normal;
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  .live-dot {
+    width: 8px; height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--accent);
+    animation: livePulse 2s ease infinite;
+  }
+  @keyframes livePulse {
+    0%,100% { opacity: 1; box-shadow: 0 0 8px var(--accent); }
+    50% { opacity: .4; box-shadow: 0 0 2px var(--accent); }
+  }
+
+  .topbar-right { display: flex; align-items: center; gap: 16px; }
+
+  .topbar select {
+    background: var(--surface-raised);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-family: var(--sans);
+    font-size: 13px;
+    cursor: pointer;
+    outline: none;
+  }
+  .topbar select:focus { border-color: var(--accent); }
+
+  .badge {
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: var(--mono);
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all .3s ease;
+  }
+  .badge.up { background: var(--accent-dim); color: var(--accent); }
+  .badge.down { background: var(--red-dim); color: var(--red); animation: badgeShake .4s ease; }
+  @keyframes badgeShake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-3px); }
+    75% { transform: translateX(3px); }
+  }
+
+  /* ---- KPI GRID ---- */
+  .section { padding: 20px 28px; }
+  .section-pad-top { padding-top: 0; }
+
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+  }
+
+  .kpi {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color .25s ease, transform .2s ease;
+  }
+  .kpi:hover {
+    border-color: var(--border-bright);
+    transform: translateY(-2px);
+  }
+  .kpi::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent);
+    opacity: 0;
+    transition: opacity .25s ease;
+  }
+  .kpi:hover::before { opacity: 1; }
+
+  .kpi-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 8px;
+  }
+  .kpi-value {
+    font-family: var(--mono);
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 6px;
+    transition: color .3s ease;
+  }
+  .kpi-trend {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .c-accent { color: var(--accent); }
+  .c-blue { color: var(--blue); }
+  .c-red { color: var(--red); }
+  .c-amber { color: var(--amber); }
+  .c-text { color: var(--text); }
+
+  /* ---- CHARTS + LOGS ROW ---- */
+  .row-2 {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 14px;
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+
+  .panel-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .panel-title .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+  }
+  .dot-green { background: var(--accent); }
+  .dot-red { background: var(--red); animation: livePulse 1.5s ease infinite; }
+  .dot-blue { background: var(--blue); }
+
+  .chart-wrap {
+    position: relative;
+    height: 200px;
+  }
+  .chart-wrap canvas {
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  /* ---- LOGS ---- */
+  .log-stream {
+    height: 200px;
+    overflow-y: auto;
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 2;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-bright) transparent;
+  }
+  .log-stream::-webkit-scrollbar { width: 4px; }
+  .log-stream::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+
+  .log-line {
+    padding: 1px 6px;
+    border-bottom: 1px solid rgba(30,39,54,.5);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    animation: logSlide .3s ease;
+  }
+  @keyframes logSlide {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  .log-ts { color: var(--text-dim); }
+  .log-info { color: var(--blue); }
+  .log-warn { color: var(--amber); }
+  .log-error { color: var(--red); }
+
+  /* ---- SERVICES TABLE ---- */
+  .svc-table { width: 100%; border-collapse: collapse; }
+  .svc-table th {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    text-align: left;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .svc-table td {
+    font-size: 13px;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(30,39,54,.4);
+  }
+  .svc-table tr:last-child td { border-bottom: none; }
+
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  /* ---- ALERTS ---- */
+  .alert-list { display: flex; flex-direction: column; gap: 8px; }
+
+  .alert-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--red);
+    border-radius: 8px;
+    padding: 14px 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    animation: alertIn .4s ease;
+  }
+  .alert-item.resolved { border-left-color: var(--accent); }
+  .alert-item .alert-ts {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    margin-left: 16px;
+  }
+  .alert-item .alert-ts.live { color: var(--red); font-weight: 700; }
+  @keyframes alertIn {
+    from { opacity: 0; transform: translateX(-16px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  .alert-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-right: 10px;
+  }
+  .alert-label.critical { background: var(--red-dim); color: var(--red); }
+  .alert-label.ok { background: var(--accent-dim); color: var(--accent); }
+
+  /* ---- RESPONSIVE ---- */
+  @media (max-width: 1024px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .row-2 { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 600px) {
+    .kpi-grid { grid-template-columns: 1fr; }
+    .topbar { flex-direction: column; gap: 10px; }
+    .section { padding: 14px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="live-dot"></div>
+      <h1>DB OBSERVABILITY <em>PLATFORM</em></h1>
+    </div>
+    <div class="topbar-right">
+      <select id="client" onchange="switchClient()">
+        <option>Client A — PostgreSQL</option>
+        <option>Client B — MySQL</option>
+      </select>
+      <div class="badge up" id="statusBadge">
+        <div class="live-dot"></div>
+        ALL SYSTEMS UP
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI ROW 1 -->
+  <div class="section">
+    <div class="kpi-grid">
+      <div class="kpi">
+        <div class="kpi-label">Database Status</div>
+        <div class="kpi-value c-accent" id="kpiStatus">UP</div>
+        <div class="kpi-trend">port 5432 · <span id="kpiResp">8</span>ms response</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Uptime</div>
+        <div class="kpi-value c-text">47<span style="font-size:14px;color:var(--text-dim)">d</span></div>
+        <div class="kpi-trend" style="color:var(--accent)">99.98% this month</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Active Connections</div>
+        <div class="kpi-value c-blue" id="kpiConn">34</div>
+        <div class="kpi-trend">of 100 max</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">CPU Usage</div>
+        <div class="kpi-value c-accent" id="kpiCpu">42%</div>
+        <div class="kpi-trend" id="kpiCpuTrend" style="color:var(--accent)">normal</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI ROW 2 -->
+  <div class="section section-pad-top">
+    <div class="kpi-grid">
+      <div class="kpi">
+        <div class="kpi-label">Disk Used</div>
+        <div class="kpi-value c-amber">68%</div>
+        <div class="kpi-trend" style="color:var(--amber)">320 GB remaining</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Queries / sec</div>
+        <div class="kpi-value c-text" id="kpiQps">240</div>
+        <div class="kpi-trend" style="color:var(--accent)">+4% vs 1h ago</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Slow Queries</div>
+        <div class="kpi-value c-amber" id="kpiSlow">3</div>
+        <div class="kpi-trend">&gt; 500ms threshold</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Cache Hit Ratio</div>
+        <div class="kpi-value c-accent">98.4%</div>
+        <div class="kpi-trend" style="color:var(--accent)">healthy</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHARTS + LOGS -->
+  <div class="section section-pad-top">
+    <div class="row-2">
+      <div class="panel">
+        <div class="panel-title"><div class="dot dot-blue"></div> Queries Per Second — Live</div>
+        <div class="chart-wrap"><canvas id="qpsCanvas"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title"><div class="dot dot-green"></div> CPU / RAM %</div>
+        <div class="chart-wrap"><canvas id="cpuCanvas"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section section-pad-top">
+    <div class="row-2">
+      <div class="panel">
+        <div class="panel-title"><div class="dot dot-red"></div> Live Error Logs (Loki)</div>
+        <div class="log-stream" id="logStream"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title"><div class="dot dot-green"></div> Connected Services</div>
+        <table class="svc-table">
+          <thead><tr><th>Service</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>PostgreSQL :5432</td><td><span class="status-pill" style="color:var(--accent)">UP</span></td></tr>
+            <tr><td>Node Exporter</td><td><span class="status-pill" style="color:var(--accent)">UP</span></td></tr>
+            <tr><td>Replica (standby)</td><td><span class="status-pill" style="color:var(--accent)">UP · lag 0.2s</span></td></tr>
+            <tr><td>Backup Job</td><td><span class="status-pill" style="color:var(--accent)">02:00 today</span></td></tr>
+            <tr><td>Promtail → Loki</td><td><span class="status-pill" style="color:var(--accent)">streaming</span></td></tr>
+            <tr><td>Alertmanager</td><td><span class="status-pill" style="color:var(--accent)">ready</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ALERTS -->
+  <div class="section section-pad-top" style="padding-bottom:40px">
+    <div class="panel">
+      <div class="panel-title"><div class="dot dot-red"></div> Recent Alerts (auto-emailed)</div>
+      <div class="alert-list" id="alertList">
+        <div class="alert-item resolved">
+          <div>
+            <span class="alert-label ok">RESOLVED</span>
+            HighCPU on db-prod-01 (was 91%)
+          </div>
+          <span class="alert-ts">today 09:14</span>
+        </div>
+        <div class="alert-item resolved">
+          <div>
+            <span class="alert-label ok">RESOLVED</span>
+            Slow query detected: SELECT * FROM orders…
+          </div>
+          <span class="alert-ts">today 07:52</span>
+        </div>
+        <div class="alert-item">
+          <div>
+            <span class="alert-label critical">CRITICAL</span>
+            staging replica 10.0.2.5:5432 unreachable
+          </div>
+          <span class="alert-ts live">NOW</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ============================================================
+//  PURE CANVAS CHART ENGINE — zero external dependencies
+// ============================================================
+
+class SparkChart {
+  constructor(canvas, opts = {}) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.datasets = opts.datasets || [];
+    this.maxY = opts.maxY || 400;
+    this.minY = opts.minY || 0;
+    this.gridColor = opts.gridColor || 'rgba(30,39,54,.8)';
+    this.gridLines = opts.gridLines || 4;
+    this.padding = { top: 8, right: 12, bottom: 4, left: 42 };
+    this._resize();
+    this._ro = new ResizeObserver(() => { this._resize(); this.draw(); });
+    this._ro.observe(canvas.parentElement);
+  }
+
+  _resize() {
+    const r = this.canvas.parentElement.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    this.canvas.width = r.width * dpr;
+    this.canvas.height = r.height * dpr;
+    this.canvas.style.width = r.width + 'px';
+    this.canvas.style.height = r.height + 'px';
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.w = r.width;
+    this.h = r.height;
+  }
+
+  draw() {
+    const { ctx, w, h, padding: p } = this;
+    const plotW = w - p.left - p.right;
+    const plotH = h - p.top - p.bottom;
+    const range = this.maxY - this.minY;
+
+    ctx.clearRect(0, 0, w, h);
+
+    // grid lines + labels
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.textAlign = 'right';
+    for (let i = 0; i <= this.gridLines; i++) {
+      const y = p.top + (plotH / this.gridLines) * i;
+      const val = Math.round(this.maxY - (range / this.gridLines) * i);
+      ctx.strokeStyle = this.gridColor;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(p.left, y);
+      ctx.lineTo(w - p.right, y);
+      ctx.stroke();
+      ctx.fillStyle = '#475569';
+      ctx.fillText(val, p.left - 8, y + 3);
+    }
+
+    // datasets
+    for (const ds of this.datasets) {
+      const data = ds.data;
+      if (!data || data.length < 2) continue;
+      const stepX = plotW / (data.length - 1);
+
+      // fill
+      ctx.beginPath();
+      ctx.moveTo(p.left, p.top + plotH);
+      for (let i = 0; i < data.length; i++) {
+        const x = p.left + i * stepX;
+        const y = p.top + plotH - ((data[i] - this.minY) / range) * plotH;
+        if (i === 0) ctx.lineTo(x, y);
+        else {
+          const px = p.left + (i - 1) * stepX;
+          const py = p.top + plotH - ((data[i - 1] - this.minY) / range) * plotH;
+          const cx = (px + x) / 2;
+          ctx.bezierCurveTo(cx, py, cx, y, x, y);
+        }
+      }
+      ctx.lineTo(p.left + plotW, p.top + plotH);
+      ctx.closePath();
+      const grad = ctx.createLinearGradient(0, p.top, 0, p.top + plotH);
+      const baseColor = ds.color || '#3b82f6';
+      grad.addColorStop(0, baseColor + '20');
+      grad.addColorStop(1, baseColor + '00');
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // line
+      ctx.beginPath();
+      for (let i = 0; i < data.length; i++) {
+        const x = p.left + i * stepX;
+        const y = p.top + plotH - ((data[i] - this.minY) / range) * plotH;
+        if (i === 0) ctx.moveTo(x, y);
+        else {
+          const px = p.left + (i - 1) * stepX;
+          const py = p.top + plotH - ((data[i - 1] - this.minY) / range) * plotH;
+          const cx = (px + x) / 2;
+          ctx.bezierCurveTo(cx, py, cx, y, x, y);
+        }
+      }
+      ctx.strokeStyle = baseColor;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // trailing dot
+      const lastX = p.left + (data.length - 1) * stepX;
+      const lastY = p.top + plotH - ((data[data.length - 1] - this.minY) / range) * plotH;
+      ctx.beginPath();
+      ctx.arc(lastX, lastY, 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = baseColor;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(lastX, lastY, 7, 0, Math.PI * 2);
+      ctx.fillStyle = baseColor + '30';
+      ctx.fill();
+    }
+
+    // legend
+    if (this.datasets.length > 1) {
+      let lx = w - p.right - 10;
+      ctx.textAlign = 'right';
+      for (let i = this.datasets.length - 1; i >= 0; i--) {
+        const ds = this.datasets[i];
+        ctx.font = '600 10px "JetBrains Mono", monospace';
+        const tw = ctx.measureText(ds.label).width;
+        ctx.fillStyle = ds.color;
+        ctx.fillText(ds.label, lx, p.top + 14);
+        lx -= tw + 18;
+        ctx.beginPath();
+        ctx.arc(lx + 6, p.top + 11, 3, 0, Math.PI * 2);
+        ctx.fillStyle = ds.color;
+        ctx.fill();
+        lx -= 12;
+      }
+    }
+  }
+}
+
+// ============================================================
+//  DATA STATE
+// ============================================================
+
+const LEN = 40;
+const qpsData = Array.from({ length: LEN }, () => 200 + Math.random() * 80);
+const cpuData = Array.from({ length: LEN }, () => 35 + Math.random() * 20);
+const ramData = Array.from({ length: LEN }, () => 55 + Math.random() * 10);
+
+const qpsChart = new SparkChart(document.getElementById('qpsCanvas'), {
+  datasets: [{ data: qpsData, color: '#3b82f6', label: 'QPS' }],
+  maxY: 450, minY: 0, gridLines: 4
+});
+qpsChart.draw();
+
+const cpuChart = new SparkChart(document.getElementById('cpuCanvas'), {
+  datasets: [
+    { data: cpuData, color: '#00e5a0', label: 'CPU' },
+    { data: ramData, color: '#f59e0b', label: 'RAM' }
+  ],
+  maxY: 100, minY: 0, gridLines: 4
+});
+cpuChart.draw();
+
+// ============================================================
+//  LOG STREAM
+// ============================================================
+
+const logMsgs = [
+  ['INFO',  'connection authorized: user=app_user db=prod',       'log-info'],
+  ['INFO',  'checkpoint complete: wrote 842 buffers',             'log-info'],
+  ['ERROR', 'deadlock detected — process 8821 waits for ShareLock','log-error'],
+  ['WARN',  'slow query: 1.8s — SELECT * FROM orders JOIN users…','log-warn'],
+  ['INFO',  'autovacuum: table "customers" finished',             'log-info'],
+  ['ERROR', 'password authentication failed for user "legacy_app"','log-error'],
+  ['WARN',  'disk usage on /var/lib/postgresql: 68%',             'log-warn'],
+  ['INFO',  'replication lag: 0.2 seconds',                       'log-info'],
+  ['INFO',  'pg_stat_activity: 34 active backends',               'log-info'],
+  ['WARN',  'temp file usage: 280MB on table "analytics_events"', 'log-warn'],
+  ['ERROR', 'could not acquire advisory lock — timeout 5000ms',   'log-error'],
+  ['INFO',  'WAL archiving: segment 000000010000000A0000002F done','log-info'],
+];
+
+function ts() {
+  return new Date().toTimeString().slice(0, 8);
+}
+
+function addLog(customMsg) {
+  const stream = document.getElementById('logStream');
+  const el = document.createElement('div');
+  el.className = 'log-line';
+  if (customMsg) {
+    el.innerHTML = `<span class="log-ts">${ts()}</span> <span class="log-info">INFO </span> ${customMsg}`;
+  } else {
+    const [lvl, msg, cls] = logMsgs[Math.floor(Math.random() * logMsgs.length)];
+    el.innerHTML = `<span class="log-ts">${ts()}</span> <span class="${cls}">${lvl.padEnd(5)}</span> ${msg}`;
+  }
+  stream.prepend(el);
+  while (stream.children.length > 50) stream.lastChild.remove();
+}
+
+// seed initial logs
+for (let i = 0; i < 6; i++) addLog();
+
+// ============================================================
+//  LIVE UPDATE LOOP (every 2s)
+// ============================================================
+
+setInterval(() => {
+  const conn = 25 + Math.floor(Math.random() * 40);
+  const cpu  = 30 + Math.floor(Math.random() * 45);
+  const qps  = 180 + Math.floor(Math.random() * 140);
+  const slow = Math.floor(Math.random() * 5);
+
+  // update KPIs
+  document.getElementById('kpiConn').textContent = conn;
+  document.getElementById('kpiCpu').textContent  = cpu + '%';
+  document.getElementById('kpiQps').textContent  = qps;
+  document.getElementById('kpiSlow').textContent  = slow;
+
+  const cpuEl = document.getElementById('kpiCpu');
+  const cpuTrend = document.getElementById('kpiCpuTrend');
+  if (cpu > 80) {
+    cpuEl.style.color = 'var(--red)';
+    cpuTrend.textContent = 'high!';
+    cpuTrend.style.color = 'var(--red)';
+  } else if (cpu > 65) {
+    cpuEl.style.color = 'var(--amber)';
+    cpuTrend.textContent = 'elevated';
+    cpuTrend.style.color = 'var(--amber)';
+  } else {
+    cpuEl.style.color = 'var(--accent)';
+    cpuTrend.textContent = 'normal';
+    cpuTrend.style.color = 'var(--accent)';
+  }
+
+  // push chart data
+  qpsData.push(qps); qpsData.shift();
+  cpuData.push(cpu);  cpuData.shift();
+  ramData.push(55 + Math.random() * 10); ramData.shift();
+  qpsChart.draw();
+  cpuChart.draw();
+
+  addLog();
+}, 2000);
+
+// ============================================================
+//  DB DOWN SIMULATION (random every ~20s)
+// ============================================================
+
+setInterval(() => {
+  if (Math.random() < 0.25) {
+    const badge = document.getElementById('statusBadge');
+    badge.className = 'badge down';
+    badge.innerHTML = '<div class="live-dot" style="background:var(--red);box-shadow:0 0 8px var(--red)"></div> REPLICA DOWN';
+
+    const status = document.getElementById('kpiStatus');
+    status.textContent = 'DOWN';
+    status.style.color = 'var(--red)';
+
+    setTimeout(() => {
+      badge.className = 'badge up';
+      badge.innerHTML = '<div class="live-dot"></div> ALL SYSTEMS UP';
+      status.textContent = 'UP';
+      status.style.color = 'var(--accent)';
+
+      const list = document.getElementById('alertList');
+      const a = document.createElement('div');
+      a.className = 'alert-item resolved';
+      a.innerHTML = `<div><span class="alert-label ok">RESOLVED</span> staging replica back online</div><span class="alert-ts">${ts()}</span>`;
+      list.prepend(a);
+    }, 6000);
+  }
+}, 20000);
+
+// ============================================================
+//  CLIENT SWITCH
+// ============================================================
+
+function switchClient() {
+  const c = document.getElementById('client').value;
+  addLog('switched dashboard context → ' + c);
+}
+</script>
+</body>
+</html>
